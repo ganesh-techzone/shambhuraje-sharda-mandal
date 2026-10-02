@@ -1,0 +1,33 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Admin = a user whose uid has a document in /admins (created manually in console).
+    function isAdmin() {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    match /admins/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    // Public singleton / reference content
+    match /{col}/{id} {
+      allow read: if col in ['aarti','liveStatus','advertisement','settings','navratriDays'];
+      allow write: if isAdmin() && col in ['aarti','liveStatus','advertisement','settings','navratriDays'];
+    }
+
+    // Public only when published == true (queries must filter on published == true)
+    match /{col}/{id} {
+      allow read: if col in ['committee','notices','events','gallery','videos'] &&
+                     (resource.data.published == true || isAdmin());
+      allow write: if isAdmin() && col in ['committee','notices','events','gallery','videos'];
+    }
+
+    // Private: admin only (member mobiles, donors, receipts, counters)
+    match /{col}/{id} {
+      allow read, write: if isAdmin() && col in ['members','donations','receipts','counters'];
+    }
+  }
+}
